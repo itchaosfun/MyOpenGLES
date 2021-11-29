@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
+import android.opengl.Matrix
+import android.opengl.Matrix.orthoM
 import android.util.Log
 import com.cmim.hdpf.myopengles.util.ShaderHelper
 import com.cmim.hdpf.myopengles.util.TextResourceReader
@@ -46,7 +48,6 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
      * 容纳在OpenGL程序对象中的位置的变量
      */
 //    private val U_COLOR = "u_Color"
-    private val A_COLOR = "a_Color"
 //    private var uColorLocation = 0
 
     private val TAG = "AirHockeyRenderer"
@@ -55,9 +56,17 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     private val COLOR_COMPONENT_COUNT = 3
     private val BYTES_PER_FLOAT = 4
 
+    private val A_COLOR = "a_Color"
     private val A_POSITION = "a_Position"
+    private val U_MATRIX = "u_Matrix"
+
     private var aPositionLocation = 0
     private var aColorLocation = 0
+
+    //保存矩阵uniform的位置
+    private var uMatrixLocation = 0
+
+    private val projectionMatrix = FloatArray(16)
 
     /**
      * stride 跨距
@@ -117,16 +126,16 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
             //order of coordinates:x,y,r,g,b
             0f, 0f, 1f, 1f, 1f,
 
-            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+            -0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
 //            -0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
-            -0.25f, -0.5f, 0.7f, 0f, 0.7f,
+            -0.25f, -0.8f, 0.7f, 0f, 0.7f,
 //            -0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
 //            0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
 //            0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
-            0f, -0.5f, 0.7f, 0.7f, 0.7f,
-            0.25f, -0.5f, 0f, 0.7f, 0.7f,
+            0f, -0.8f, 0.7f, 0.7f, 0.7f,
+            0.25f, -0.8f, 0f, 0.7f, 0.7f,
 
-            0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+            0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
 //            0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
             0.5f, -0.25f, 0.7f, 0f, 0.7f,
 //            0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
@@ -135,25 +144,25 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
             0.5f, 0f, 0.7f, 0.7f, 0.7f,
             0.5f, 0.25f, 0f, 0.7f, 0.7f,
 
-            0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+            0.5f, 0.8f, 0.7f, 0.7f, 0.7f,
 //            0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
-            0.25f, 0.5f, 0.7f, 0f, 0.7f,
+            0.25f, 0.8f, 0.7f, 0f, 0.7f,
 //            0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
 //            -0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
 //            -0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
-            0f, 0.5f, 0.7f, 0.7f, 0.7f,
-            -0.25f, 0.5f, 0f, 0.7f, 0.7f,
+            0f, 0.8f, 0.7f, 0.7f, 0.7f,
+            -0.25f, 0.8f, 0f, 0.7f, 0.7f,
 
-            -0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+            -0.5f, 0.8f, 0.7f, 0.7f, 0.7f,
 //            -0.5f, 0.375f, 0.7f, 0.7f, 0.7f,
             -0.5f, 0.25f, 0.7f, 0f, 0.7f,
 //            -0.5f, 0.125f, 0.7f, 0.7f, 0.7f,
 //            -0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
 //            -0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
             -0.5f, 0f, 0.7f, 0.7f, 0.7f,
-            -0.5f,-0.25f, 0f, 0.7f, 0.7f,
+            -0.5f, -0.25f, 0f, 0.7f, 0.7f,
 
-            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+            -0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
 
             // Line 1
             -0.5f, 0f, 1f, 0f, 0f,
@@ -265,6 +274,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         )
         //使能顶点数据
         glEnableVertexAttribArray(aColorLocation)
+
+        uMatrixLocation = glGetUniformLocation(program, U_MATRIX)
     }
 
     /**
@@ -273,8 +284,28 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
      */
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         //设置OpenGL的视口（viewPort）尺寸，告诉OpenGL可以用来渲染的surface的大小
+
+
         glViewport(0, 0, width, height)
         Log.i(TAG, "width = $width, height = $height")
+        val aspectRatio = if (width > height) {
+            width.toFloat() / height.toFloat()
+        } else {
+            height.toFloat() / width.toFloat()
+        }
+        /**
+         * 创建正交投影矩阵，这个矩阵会把屏幕的当前方向计算在内，建立一个虚拟坐标空间。
+         * 首先计算了宽高比，使用宽和高中的较大值除以较小值
+         * 接下来调用orthoM()函数。
+         * 如果在横屏模式下，扩展宽度的坐标空间，取值范围为 -aspectRatio-aspectRatio，高度取值-1,1
+         * 如果在横屏模式下，扩展高度的坐标空间，取值范围为 -aspectRatio-aspectRatio，宽度取值-1,1
+         *
+         */
+        if (width > height) {
+            orthoM(projectionMatrix, 0, -aspectRatio, aspectRatio, -1f, 1f, -1f, 1f)
+        } else {
+            orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f)
+        }
     }
 
     /**
@@ -305,6 +336,10 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
          * 下面的代码是，绘制三角形，从开头处读顶点，读取6个顶点，因为每个三角形有三个，我们需要绘制两个三角形
          */
 //        glDrawArrays(GL_TRIANGLES, 0, 6)
+
+        //给着色器传递正交投影矩阵
+        glUniformMatrix4fv(uMatrixLocation,1,false,projectionMatrix,0)
+
         /**
          * GL_TRIANGLE_FAN 代表绘制一个三角形扇
          */
@@ -316,10 +351,10 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
 //        glUniform4f(uColorLocation, 0.0f, 0.0f, 1.0f, 1.0f)
         //第8个顶点，并用一个顶点绘制一个点
-        glDrawArrays(GL_POINTS, vertexSize+2, 1)
+        glDrawArrays(GL_POINTS, vertexSize + 2, 1)
 
 //        glUniform4f(uColorLocation, 1.0f, 0.0f, 0.0f, 1.0f)
         //第8个顶点，并用一个顶点绘制一个点
-        glDrawArrays(GL_POINTS, vertexSize+3, 1)
+        glDrawArrays(GL_POINTS, vertexSize + 3, 1)
     }
 }
