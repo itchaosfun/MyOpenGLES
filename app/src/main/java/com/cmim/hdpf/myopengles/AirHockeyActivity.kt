@@ -3,6 +3,7 @@ package com.cmim.hdpf.myopengles
 import android.opengl.GLSurfaceView
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import com.cmim.hdpf.myopengles.booksource.AirHockeyRenderer2
 
 class AirHockeyActivity : AppCompatActivity() {
 

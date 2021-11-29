@@ -1,8 +1,10 @@
 package com.cmim.hdpf.myopengles
 
 import android.content.Context
+import android.graphics.Color
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
+import android.util.Log
 import com.cmim.hdpf.myopengles.util.ShaderHelper
 import com.cmim.hdpf.myopengles.util.TextResourceReader
 import java.nio.ByteBuffer
@@ -38,26 +40,38 @@ import javax.microedition.khronos.opengles.GL10
 
 class AirHockeyRenderer : GLSurfaceView.Renderer {
 
-    private val A_POSITION = "a_Position"
-    private var aPositionLocation = 0
+    private val vertexSize = 18
 
     /**
      * 容纳在OpenGL程序对象中的位置的变量
      */
-    private val U_COLOR = "u_Color"
-    private var uColorLocation = 0
+//    private val U_COLOR = "u_Color"
+    private val A_COLOR = "a_Color"
+//    private var uColorLocation = 0
 
     private val TAG = "AirHockeyRenderer"
 
     private val POSITION_COMPONENT_COUNT = 2
+    private val COLOR_COMPONENT_COUNT = 3
     private val BYTES_PER_FLOAT = 4
+
+    private val A_POSITION = "a_Position"
+    private var aPositionLocation = 0
+    private var aColorLocation = 0
+
+    /**
+     * stride 跨距
+     * 我们在同一个数据数组里面既有位置又有颜色属性，OpenGL不能再假定下一个位置紧跟着前一个位置的。
+     * 一旦OpenGL读入了一个顶点的位置，如果再想读入下一个顶点的位置，就需要跳过当前的颜色数据
+     * stride（跨距）就是告诉OpenGL每个位置之间有多少个字节，需要跳过多少的
+     */
+    private val STRIDE = (POSITION_COMPONENT_COUNT + COLOR_COMPONENT_COUNT) * BYTES_PER_FLOAT
 
     private var vertexData: FloatBuffer? = null
 
-    private var program:Int = 0
+    private var program: Int = 0
 
     private var context: Context
-
 
 
     constructor(context: Context) {
@@ -80,35 +94,90 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
          * OpenGL里面，只能绘制点，线和三角形
          * 四边形的桌子需要用两个三角形进行拼接
          */
-//        val tableVerticesWithTriangles = floatArrayOf(
-//            //triangle 1
-//            0f, 0f,
-//            9f, 14f,
-//            0f, 14f,
-//            //triangle 2
-//            0f, 0f,
-//            9f, 0f,
-//            9f, 14f,
-//            //line1 中间线
-//            0f, 7f,
-//            9f, 7f,
-//            //mallets 木槌
-//            4.5f, 2f,
-//            4.5f, 12f
+//        val tableVerticesWithTriangles = floatArrayOf( // Triangle 1
+//            -0.5f, -0.5f,
+//            0.5f, 0.5f,
+//            -0.5f, 0.5f,  // Triangle 2
+//            -0.5f, -0.5f,
+//            0.5f, -0.5f,
+//            0.5f, 0.5f,  // Line 1
+//            -0.5f, 0f,
+//            0.5f, 0f,  // Mallets
+//            0f, -0.25f,
+//            0f, 0.25f
 //        )
 
-        val tableVerticesWithTriangles = floatArrayOf( // Triangle 1
-            -0.5f, -0.5f,
-            0.5f, 0.5f,
-            -0.5f, 0.5f,  // Triangle 2
-            -0.5f, -0.5f,
-            0.5f, -0.5f,
-            0.5f, 0.5f,  // Line 1
-            -0.5f, 0f,
-            0.5f, 0f,  // Mallets
-            0f, -0.25f,
-            0f, 0.25f
+        /**
+         * 更新三角形
+         * 新顶点的加入，形成了四个三角形，中心点坐标是0，0，五个点形成4个三角形，我们称之为三角形扇
+         * 一个三角形扇以一个中心顶点作为起始，使用相邻的两个顶点创建第一个三角形，接下来的每个顶点都会创建一个三角形，
+         * 围绕起始的中心点按扇形展开。为了使扇形闭合，我们只需要在最后重复第二个点。
+         */
+        val tableVerticesWithTriangles = floatArrayOf(
+            //order of coordinates:x,y,r,g,b
+            0f, 0f, 1f, 1f, 1f,
+
+            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
+            -0.25f, -0.5f, 0.7f, 0f, 0.7f,
+//            -0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
+            0f, -0.5f, 0.7f, 0.7f, 0.7f,
+            0.25f, -0.5f, 0f, 0.7f, 0.7f,
+
+            0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
+            0.5f, -0.25f, 0.7f, 0f, 0.7f,
+//            0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
+//            0.5f, 0.125f, 0.7f, 0.7f, 0.7f,
+//            0.5f, 0.375f, 0.7f, 0.7f, 0.7f,
+            0.5f, 0f, 0.7f, 0.7f, 0.7f,
+            0.5f, 0.25f, 0f, 0.7f, 0.7f,
+
+            0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
+            0.25f, 0.5f, 0.7f, 0f, 0.7f,
+//            0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
+            0f, 0.5f, 0.7f, 0.7f, 0.7f,
+            -0.25f, 0.5f, 0f, 0.7f, 0.7f,
+
+            -0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, 0.375f, 0.7f, 0.7f, 0.7f,
+            -0.5f, 0.25f, 0.7f, 0f, 0.7f,
+//            -0.5f, 0.125f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
+            -0.5f, 0f, 0.7f, 0.7f, 0.7f,
+            -0.5f,-0.25f, 0f, 0.7f, 0.7f,
+
+            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+
+            // Line 1
+            -0.5f, 0f, 1f, 0f, 0f,
+            0.5f, 0f, 1f, 1f, 0f,
+            // Mallets
+            0f, -0.25f, 0f, 0f, 1f,
+            0f, 0.25f, 1f, 0f, 0f
         )
+
+//        val tableVerticesWithTriangles = floatArrayOf(
+//            //order of coordinates:x,y,r,g,b
+//            0f, 0f, 1f, 1f, 1f,
+//            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
+//            // Line 1
+//            -0.5f, 0f, 1f, 0f, 0f,
+//            0.5f, 0f, 1f, 1f, 0f,
+//            // Mallets
+//            0f, -0.25f, 0f, 0f, 1f,
+//            0f, 0.25f, 1f, 0f, 0f
+//        )
 
         vertexData = ByteBuffer
             .allocateDirect(tableVerticesWithTriangles.size * BYTES_PER_FLOAT)
@@ -145,15 +214,16 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         glUseProgram(program)
 
         /**
-         * 备注见顶部 @4
-         * 获取uniform的位置，并把这个位置存入uColorLocation中
-         */
-        uColorLocation = glGetUniformLocation(program, U_COLOR)
-
-        /**
          * 调用 glGetAttribLocation() 获取属性的位置。有了这个位置，就能告诉OpenGL到哪里去找到这个属性对应的数据了
          */
         aPositionLocation = glGetAttribLocation(program, A_POSITION)
+
+        /**
+         * 备注见顶部 @4
+         * 获取uniform的位置，aColorLocation
+         */
+//        uColorLocation = glGetUniformLocation(program, U_COLOR)
+        aColorLocation = glGetAttribLocation(program, A_COLOR)
 
         //关联属性与定点数据的数组
         vertexData?.position(0)
@@ -176,12 +246,25 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
             POSITION_COMPONENT_COUNT,
             GL_FLOAT,
             false,
-            0,
+            STRIDE,
             vertexData
         )
 
         //使能顶点数据
         glEnableVertexAttribArray(aPositionLocation)
+
+        //关联颜色属性与定点数据的数组
+        vertexData?.position(POSITION_COMPONENT_COUNT)
+        glVertexAttribPointer(
+            aColorLocation,
+            COLOR_COMPONENT_COUNT,
+            GL_FLOAT,
+            false,
+            STRIDE,
+            vertexData
+        )
+        //使能顶点数据
+        glEnableVertexAttribArray(aColorLocation)
     }
 
     /**
@@ -191,6 +274,7 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         //设置OpenGL的视口（viewPort）尺寸，告诉OpenGL可以用来渲染的surface的大小
         glViewport(0, 0, width, height)
+        Log.i(TAG, "width = $width, height = $height")
     }
 
     /**
@@ -208,8 +292,9 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         /**
          * 备注见顶部 @5
          * glUniform4f更新着色器代码中的u_color的值。
+         * 我们已经把顶点数据和a_Color关联起来了，只需要调用glDrawArrays()即可，OpenGL会自动从顶点数据里读入颜色属性
          */
-        glUniform4f(uColorLocation, 1.0f, 1.0f, 1.0f, 1.0f)
+//        glUniform4f(uColorLocation, 1.0f, 1.0f, 1.0f, 1.0f)
         /**
          * 绘制
          * mode：点，直线，三角形
@@ -219,18 +304,22 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
          *
          * 下面的代码是，绘制三角形，从开头处读顶点，读取6个顶点，因为每个三角形有三个，我们需要绘制两个三角形
          */
-        glDrawArrays(GL_TRIANGLES, 0, 6)
+//        glDrawArrays(GL_TRIANGLES, 0, 6)
+        /**
+         * GL_TRIANGLE_FAN 代表绘制一个三角形扇
+         */
+        glDrawArrays(GL_TRIANGLE_FAN, 0, vertexSize)
 
-        glUniform4f(uColorLocation, 1.0f, 0.0f, 0.0f, 1.0f)
-        //画线 从第六个顶点后的第一个顶点开始读两个顶点
-        glDrawArrays(GL_LINES, 6, 2)
+//        glUniform4f(uColorLocation, 1.0f, 0.0f, 0.0f, 1.0f)
+        //画线 从第7个顶点开始读两个顶点
+        glDrawArrays(GL_LINES, vertexSize, 2)
 
-        glUniform4f(uColorLocation, 0.0f, 0.0f, 1.0f, 1.0f)
-        //从偏移位置8开始，并用一个顶点绘制一个点
-        glDrawArrays(GL_POINTS, 8, 1)
+//        glUniform4f(uColorLocation, 0.0f, 0.0f, 1.0f, 1.0f)
+        //第8个顶点，并用一个顶点绘制一个点
+        glDrawArrays(GL_POINTS, vertexSize+2, 1)
 
-        glUniform4f(uColorLocation, 1.0f, 0.0f, 0.0f, 1.0f)
-        //从偏移位置9开始，并用一个顶点绘制一个点
-        glDrawArrays(GL_POINTS, 9, 1)
+//        glUniform4f(uColorLocation, 1.0f, 0.0f, 0.0f, 1.0f)
+        //第8个顶点，并用一个顶点绘制一个点
+        glDrawArrays(GL_POINTS, vertexSize+3, 1)
     }
 }

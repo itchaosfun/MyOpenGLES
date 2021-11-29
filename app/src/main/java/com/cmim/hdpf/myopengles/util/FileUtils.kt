@@ -1,6 +1,7 @@
 package com.cmim.hdpf.myopengles.util
 
 import android.content.Context
+import android.graphics.Color
 import android.util.Log
 import java.io.*
 
@@ -50,5 +51,15 @@ object FileUtils {
             e.printStackTrace()
         }
         return stringBuilder.toString()
+    }
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val parseColor = Color.parseColor("#0099cc")
+        val red = Color.red(parseColor) / 255f
+        val green = Color.green(parseColor) / 255f
+        val blue = Color.blue(parseColor) / 255f
+
+        println("red = $red, green = $green, blue = $blue")
     }
 }
