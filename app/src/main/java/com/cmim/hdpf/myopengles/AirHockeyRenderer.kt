@@ -5,8 +5,9 @@ import android.graphics.Color
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix
-import android.opengl.Matrix.orthoM
+import android.opengl.Matrix.*
 import android.util.Log
+import com.cmim.hdpf.myopengles.util.MatrixHelper
 import com.cmim.hdpf.myopengles.util.ShaderHelper
 import com.cmim.hdpf.myopengles.util.TextResourceReader
 import java.nio.ByteBuffer
@@ -42,7 +43,10 @@ import javax.microedition.khronos.opengles.GL10
 
 class AirHockeyRenderer : GLSurfaceView.Renderer {
 
-    private val vertexSize = 18
+    //模型矩阵
+    private val modelMatrix = FloatArray(16)
+
+    private val vertexSize = 6
 
     /**
      * 容纳在OpenGL程序对象中的位置的变量
@@ -66,6 +70,9 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     //保存矩阵uniform的位置
     private var uMatrixLocation = 0
 
+    /**
+     * 用于存储顶点数组的4x4矩阵
+     */
     private val projectionMatrix = FloatArray(16)
 
     /**
@@ -122,71 +129,54 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
          * 一个三角形扇以一个中心顶点作为起始，使用相邻的两个顶点创建第一个三角形，接下来的每个顶点都会创建一个三角形，
          * 围绕起始的中心点按扇形展开。为了使扇形闭合，我们只需要在最后重复第二个点。
          */
+//        val tableVerticesWithTriangles = floatArrayOf(
+//            //order of coordinates:x,y,z,w,r,g,b
+//            0f, 0f, 0f, 1.5f, 1f, 1f, 1f,
+//
+//            -0.5f, -0.8f, 0f, 1f, 0.7f, 0.7f, 0.7f,
+//            -0.25f, -0.8f, 0f, 1f, 0.7f, 0f, 0.7f,
+//            0f, -0.8f, 0f, 1f, 0.7f, 0.7f, 0.7f,
+//            0.25f, -0.8f, 0f, 1f, 0f, 0.7f, 0.7f,
+//
+//            0.5f, -0.8f, 0f, 1f, 0.7f, 0.7f, 0.7f,
+//            0.5f, -0.4f, 0f, 1.25f, 0.7f, 0f, 0.7f,
+//            0.5f, 0f, 0f, 1.5f, 0.7f, 0.7f, 0.7f,
+//            0.5f, 0.4f, 0f, 1.75f, 0f, 0.7f, 0.7f,
+//            0.5f, 0.8f, 0f, 2f, 0.7f, 0.7f, 0.7f,
+//
+//            0.25f, 0.8f, 0f, 2f, 0.7f, 0f, 0.7f,
+//            0f, 0.8f, 0f, 2f, 0.7f, 0.7f, 0.7f,
+//            -0.25f, 0.8f, 0f, 2f, 0f, 0.7f, 0.7f,
+//            -0.5f, 0.8f, 0f, 2f, 0.7f, 0.7f, 0.7f,
+//
+//            -0.5f, 0.4f, 0f, 1.75f, 0.7f, 0f, 0.7f,
+//            -0.5f, 0f, 0f, 1.5f, 0.7f, 0.7f, 0.7f,
+//            -0.5f, -0.4f, 0f, 1.25f, 0f, 0.7f, 0.7f,
+//            -0.5f, -0.8f, 0f, 1f, 0.7f, 0.7f, 0.7f,
+//
+//            // Line 1
+//            -0.5f, 0f, 0f, 1.5f, 1f, 0f, 0f,
+//            0.5f, 0f, 0f, 1.5f, 1f, 1f, 0f,
+//            // Mallets
+//            0f, -0.4f, 0f, 1.25f, 0f, 0f, 1f,
+//            0f, 0.4f, 0f, 1.75f, 1f, 0f, 0f
+//        )
+
         val tableVerticesWithTriangles = floatArrayOf(
             //order of coordinates:x,y,r,g,b
             0f, 0f, 1f, 1f, 1f,
-
             -0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
-//            -0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
-            -0.25f, -0.8f, 0.7f, 0f, 0.7f,
-//            -0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
-//            0.125f, -0.5f, 0.7f, 0.7f, 0.7f,
-//            0.375f, -0.5f, 0.7f, 0.7f, 0.7f,
-            0f, -0.8f, 0.7f, 0.7f, 0.7f,
-            0.25f, -0.8f, 0f, 0.7f, 0.7f,
-
             0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
-//            0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
-            0.5f, -0.25f, 0.7f, 0f, 0.7f,
-//            0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
-//            0.5f, 0.125f, 0.7f, 0.7f, 0.7f,
-//            0.5f, 0.375f, 0.7f, 0.7f, 0.7f,
-            0.5f, 0f, 0.7f, 0.7f, 0.7f,
-            0.5f, 0.25f, 0f, 0.7f, 0.7f,
-
             0.5f, 0.8f, 0.7f, 0.7f, 0.7f,
-//            0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
-            0.25f, 0.8f, 0.7f, 0f, 0.7f,
-//            0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
-//            -0.125f, 0.5f, 0.7f, 0.7f, 0.7f,
-//            -0.375f, 0.5f, 0.7f, 0.7f, 0.7f,
-            0f, 0.8f, 0.7f, 0.7f, 0.7f,
-            -0.25f, 0.8f, 0f, 0.7f, 0.7f,
-
             -0.5f, 0.8f, 0.7f, 0.7f, 0.7f,
-//            -0.5f, 0.375f, 0.7f, 0.7f, 0.7f,
-            -0.5f, 0.25f, 0.7f, 0f, 0.7f,
-//            -0.5f, 0.125f, 0.7f, 0.7f, 0.7f,
-//            -0.5f, -0.125f, 0.7f, 0.7f, 0.7f,
-//            -0.5f, -0.375f, 0.7f, 0.7f, 0.7f,
-            -0.5f, 0f, 0.7f, 0.7f, 0.7f,
-            -0.5f, -0.25f, 0f, 0.7f, 0.7f,
-
             -0.5f, -0.8f, 0.7f, 0.7f, 0.7f,
-
             // Line 1
             -0.5f, 0f, 1f, 0f, 0f,
             0.5f, 0f, 1f, 1f, 0f,
             // Mallets
-            0f, -0.25f, 0f, 0f, 1f,
-            0f, 0.25f, 1f, 0f, 0f
+            0f, -0.4f, 0f, 0f, 1f,
+            0f, 0.4f, 1f, 0f, 0f
         )
-
-//        val tableVerticesWithTriangles = floatArrayOf(
-//            //order of coordinates:x,y,r,g,b
-//            0f, 0f, 1f, 1f, 1f,
-//            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
-//            0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
-//            0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
-//            -0.5f, 0.5f, 0.7f, 0.7f, 0.7f,
-//            -0.5f, -0.5f, 0.7f, 0.7f, 0.7f,
-//            // Line 1
-//            -0.5f, 0f, 1f, 0f, 0f,
-//            0.5f, 0f, 1f, 1f, 0f,
-//            // Mallets
-//            0f, -0.25f, 0f, 0f, 1f,
-//            0f, 0.25f, 1f, 0f, 0f
-//        )
 
         vertexData = ByteBuffer
             .allocateDirect(tableVerticesWithTriangles.size * BYTES_PER_FLOAT)
@@ -288,24 +278,49 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
         glViewport(0, 0, width, height)
         Log.i(TAG, "width = $width, height = $height")
-        val aspectRatio = if (width > height) {
-            width.toFloat() / height.toFloat()
-        } else {
-            height.toFloat() / width.toFloat()
-        }
+
+        //用45度的视野创建一个透视投影。这个视锥体，从z值为-1的位置开始，在z值为-10的位置结束
+        MatrixHelper.perspectiveM(
+            projectionMatrix,
+            45f,
+            width.toFloat() / height.toFloat(),
+            1f,
+            10f
+        )
+
+        //把模型矩阵设为单位矩阵，再沿着z轴平移-2
+        setIdentityM(modelMatrix, 0)
+        translateM(modelMatrix, 0, 0f, 0f, -2.5f)
+        rotateM(modelMatrix,0,-60f,1f,0f,0f)
+
+        //把模型矩阵与投影矩阵相乘，得到一个矩阵，然后把这个矩阵传递给顶点着色器。通过这种方式
+        //我们可以再着色器中只保留一个矩阵
         /**
-         * 创建正交投影矩阵，这个矩阵会把屏幕的当前方向计算在内，建立一个虚拟坐标空间。
-         * 首先计算了宽高比，使用宽和高中的较大值除以较小值
-         * 接下来调用orthoM()函数。
-         * 如果在横屏模式下，扩展宽度的坐标空间，取值范围为 -aspectRatio-aspectRatio，高度取值-1,1
-         * 如果在横屏模式下，扩展高度的坐标空间，取值范围为 -aspectRatio-aspectRatio，宽度取值-1,1
-         *
+         * 创建一个临时的浮点数组用于存储临时结果，然后把投影矩阵和模型矩阵相乘，其结果存于临时数组
+         * 接着把结果存回projectionMatrix，它包含模型矩阵与投影矩阵的组合效应
          */
-        if (width > height) {
-            orthoM(projectionMatrix, 0, -aspectRatio, aspectRatio, -1f, 1f, -1f, 1f)
-        } else {
-            orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f)
-        }
+        val temp = FloatArray(16)
+        multiplyMM(temp,0,projectionMatrix,0,modelMatrix,0)
+        System.arraycopy(temp,0,projectionMatrix,0,temp.size)
+
+//        val aspectRatio = if (width > height) {
+//            width.toFloat() / height.toFloat()
+//        } else {
+//            height.toFloat() / width.toFloat()
+//        }
+//        /**
+//         * 创建正交投影矩阵，这个矩阵会把屏幕的当前方向计算在内，建立一个虚拟坐标空间。
+//         * 首先计算了宽高比，使用宽和高中的较大值除以较小值
+//         * 接下来调用orthoM()函数。
+//         * 如果在横屏模式下，扩展宽度的坐标空间，取值范围为 -aspectRatio-aspectRatio，高度取值-1,1
+//         * 如果在横屏模式下，扩展高度的坐标空间，取值范围为 -aspectRatio-aspectRatio，宽度取值-1,1
+//         *
+//         */
+//        if (width > height) {
+//            orthoM(projectionMatrix, 0, -aspectRatio, aspectRatio, -1f, 1f, -1f, 1f)
+//        } else {
+//            orthoM(projectionMatrix, 0, -1f, 1f, -aspectRatio, aspectRatio, -1f, 1f)
+//        }
     }
 
     /**
@@ -338,7 +353,7 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 //        glDrawArrays(GL_TRIANGLES, 0, 6)
 
         //给着色器传递正交投影矩阵
-        glUniformMatrix4fv(uMatrixLocation,1,false,projectionMatrix,0)
+        glUniformMatrix4fv(uMatrixLocation, 1, false, projectionMatrix, 0)
 
         /**
          * GL_TRIANGLE_FAN 代表绘制一个三角形扇
