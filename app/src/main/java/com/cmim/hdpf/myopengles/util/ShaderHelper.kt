@@ -118,4 +118,17 @@ object ShaderHelper {
         return validateStatus[0] != 0
     }
 
+    fun buildProgram(vertexShaderSource:String,fragmentShaderSource:String):Int{
+        var program:Int = 0
+        //compile the shader
+        val vertexShader = compileVertexShader(vertexShaderSource)
+        val fragmentShader = compileFragmentShader(fragmentShaderSource)
+
+        //link them into a shader program
+        program = linkProgram(vertexShader,fragmentShader)
+        validateProgram(program)
+
+        return program
+    }
+
 }
