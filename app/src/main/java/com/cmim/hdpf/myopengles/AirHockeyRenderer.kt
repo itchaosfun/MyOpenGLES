@@ -6,6 +6,7 @@ import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
 import android.util.Log
 import com.cmim.hdpf.myopengles.`object`.Mallet
+import com.cmim.hdpf.myopengles.`object`.Puck
 import com.cmim.hdpf.myopengles.`object`.Table
 import com.cmim.hdpf.myopengles.program.ColorShaderProgram
 import com.cmim.hdpf.myopengles.program.TextureShaderProgram
@@ -42,6 +43,12 @@ import javax.microedition.khronos.opengles.GL10
 class AirHockeyRenderer : GLSurfaceView.Renderer {
     private val TAG = "AirHockeyRenderer"
 
+    //视图矩阵
+    private val viewMatrix = FloatArray(16)
+
+    private val viewProjectMatrix = FloatArray(16)
+    private val modelViewProjectMatrix = FloatArray(16)
+
     //模型矩阵
     private val modelMatrix = FloatArray(16)
 
@@ -54,11 +61,12 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
     private lateinit var table: Table
     private lateinit var mallet: Mallet
+    private lateinit var puck: Puck
 
-    private lateinit var textureProgram:TextureShaderProgram
+    private lateinit var textureProgram: TextureShaderProgram
     private lateinit var colorProgram: ColorShaderProgram
 
-    private var texture:Int = 0
+    private var texture: Int = 0
 
     constructor(context: Context) {
         this.context = context
@@ -72,13 +80,14 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
      * 本方法可能会被调用多次
      */
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        glClearColor(0.0f,0.0f,0.0f,0.0f)
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
         table = Table()
-        mallet = Mallet()
+        mallet = Mallet(0.08f, 0.15f, 32)
+        puck = Puck(0.06f, 0.02f, 32)
 
         textureProgram = TextureShaderProgram(context)
         colorProgram = ColorShaderProgram(context)
-        texture =TextureHelper.loadTexture(context,R.mipmap.air_hockey_surface)
+        texture = TextureHelper.loadTexture(context, R.mipmap.air_hockey_surface)
     }
 
     /**
@@ -98,19 +107,22 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
             1f,
             10f
         )
-        //把模型矩阵设为单位矩阵，再沿着z轴平移-2
-        setIdentityM(modelMatrix, 0)
-        translateM(modelMatrix, 0, 0f, 0f, -2.5f)
-        rotateM(modelMatrix,0,-60f,1f,0f,0f)
-        //把模型矩阵与投影矩阵相乘，得到一个矩阵，然后把这个矩阵传递给顶点着色器。通过这种方式
-        //我们可以再着色器中只保留一个矩阵
-        /**
-         * 创建一个临时的浮点数组用于存储临时结果，然后把投影矩阵和模型矩阵相乘，其结果存于临时数组
-         * 接着把结果存回projectionMatrix，它包含模型矩阵与投影矩阵的组合效应
-         */
-        val temp = FloatArray(16)
-        multiplyMM(temp,0,projectionMatrix,0,modelMatrix,0)
-        System.arraycopy(temp,0,projectionMatrix,0,temp.size)
+
+        setLookAtM(viewMatrix, 0, 0f, 1.2f, 2.2f, 0f, 0f, 0f, 0f, 1f, 0f)
+
+//        //把模型矩阵设为单位矩阵，再沿着z轴平移-2
+//        setIdentityM(modelMatrix, 0)
+//        translateM(modelMatrix, 0, 0f, 0f, -2.5f)
+//        rotateM(modelMatrix, 0, -60f, 1f, 0f, 0f)
+//        //把模型矩阵与投影矩阵相乘，得到一个矩阵，然后把这个矩阵传递给顶点着色器。通过这种方式
+//        //我们可以再着色器中只保留一个矩阵
+//        /**
+//         * 创建一个临时的浮点数组用于存储临时结果，然后把投影矩阵和模型矩阵相乘，其结果存于临时数组
+//         * 接着把结果存回projectionMatrix，它包含模型矩阵与投影矩阵的组合效应
+//         */
+//        val temp = FloatArray(16)
+//        multiplyMM(temp, 0, projectionMatrix, 0, modelMatrix, 0)
+//        System.arraycopy(temp, 0, projectionMatrix, 0, temp.size)
     }
 
     /**
@@ -125,16 +137,42 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     override fun onDrawFrame(gl: GL10?) {
         //调用glClear清空屏幕，擦除屏幕上的所有颜色，并用之前的glClearColor调用定义的颜色填充整个屏幕
         glClear(GL_COLOR_BUFFER_BIT)
-        //Draw the table
+
+        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+
+        positionTableInScene()
         textureProgram.useProgram()
-        textureProgram.setUniforms(projectionMatrix,texture)
+        textureProgram.setUniforms(modelViewProjectMatrix, texture)
         table.bindData(textureProgram)
         table.draw()
 
         //Draw the mallet
+        positionObjectInScene(0f, mallet.height / 2f, -0.4f)
         colorProgram.useProgram()
-        colorProgram.setUniforms(projectionMatrix)
+        colorProgram.setUniforms(modelViewProjectMatrix, 1f, 0f, 0f)
         mallet.bindData(colorProgram)
         mallet.draw()
+
+        positionObjectInScene(0f, mallet.height / 2f, 0.4f)
+        colorProgram.setUniforms(modelViewProjectMatrix, 0f, 0f, 1f)
+
+        mallet.draw()
+
+        positionObjectInScene(0f, puck.height / 2f, 0f)
+        colorProgram.setUniforms(modelViewProjectMatrix, 0.8f, 0.8f, 1f)
+        puck.bindData(colorProgram)
+        puck.draw()
+    }
+
+    private fun positionObjectInScene(x: Float, y: Float, z: Float) {
+       setIdentityM(modelMatrix,0)
+        translateM(modelMatrix,0,x,y,z)
+        multiplyMM(modelViewProjectMatrix,0,viewProjectMatrix,0,modelMatrix,0)
+    }
+
+    private fun positionTableInScene() {
+        setIdentityM(modelMatrix, 0)
+        rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
+        multiplyMM(modelViewProjectMatrix, 0, viewProjectMatrix, 0, modelMatrix, 0)
     }
 }
