@@ -1,6 +1,7 @@
 package com.cmim.hdpf.myopengles
 
 import android.content.Context
+import android.media.Image
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
@@ -8,6 +9,12 @@ import android.util.Log
 import com.cmim.hdpf.myopengles.`object`.Mallet
 import com.cmim.hdpf.myopengles.`object`.Puck
 import com.cmim.hdpf.myopengles.`object`.Table
+import com.cmim.hdpf.myopengles.geometry.Geometry
+import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Ray
+import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Sphere
+import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Vector
+import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Plane
+import com.cmim.hdpf.myopengles.geometry.Point
 import com.cmim.hdpf.myopengles.program.ColorShaderProgram
 import com.cmim.hdpf.myopengles.program.TextureShaderProgram
 import com.cmim.hdpf.myopengles.util.MatrixHelper
@@ -49,6 +56,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     private val viewProjectMatrix = FloatArray(16)
     private val modelViewProjectMatrix = FloatArray(16)
 
+    private val invertedViewProjectMatrix = FloatArray(16)
+
     //模型矩阵
     private val modelMatrix = FloatArray(16)
 
@@ -67,6 +76,9 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     private lateinit var colorProgram: ColorShaderProgram
 
     private var texture: Int = 0
+
+    private var malletPressed = false
+    private var blueMalletPosition: Point? = null
 
     constructor(context: Context) {
         this.context = context
@@ -88,6 +100,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         textureProgram = TextureShaderProgram(context)
         colorProgram = ColorShaderProgram(context)
         texture = TextureHelper.loadTexture(context, R.mipmap.air_hockey_surface)
+
+        blueMalletPosition = Point(0f, mallet.height / 2f, 0.4f)
     }
 
     /**
@@ -139,6 +153,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         glClear(GL_COLOR_BUFFER_BIT)
 
         multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+        //反转矩阵
+        invertM(invertedViewProjectMatrix, 0, viewProjectMatrix, 0)
 
         positionTableInScene()
         textureProgram.useProgram()
@@ -147,7 +163,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         table.draw()
 
         //Draw the mallet
-        positionObjectInScene(0f, mallet.height / 2f, -0.4f)
+//        positionObjectInScene(0f, mallet.height / 2f, -0.4f)
+        positionObjectInScene(blueMalletPosition?.x?:0f,blueMalletPosition?.y?:0f,blueMalletPosition?.z?:0f)
         colorProgram.useProgram()
         colorProgram.setUniforms(modelViewProjectMatrix, 1f, 0f, 0f)
         mallet.bindData(colorProgram)
@@ -165,14 +182,71 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     }
 
     private fun positionObjectInScene(x: Float, y: Float, z: Float) {
-       setIdentityM(modelMatrix,0)
-        translateM(modelMatrix,0,x,y,z)
-        multiplyMM(modelViewProjectMatrix,0,viewProjectMatrix,0,modelMatrix,0)
+        setIdentityM(modelMatrix, 0)
+        translateM(modelMatrix, 0, x, y, z)
+        multiplyMM(modelViewProjectMatrix, 0, viewProjectMatrix, 0, modelMatrix, 0)
     }
 
     private fun positionTableInScene() {
         setIdentityM(modelMatrix, 0)
         rotateM(modelMatrix, 0, -90f, 1f, 0f, 0f)
         multiplyMM(modelViewProjectMatrix, 0, viewProjectMatrix, 0, modelMatrix, 0)
+    }
+
+    /**
+     * 处理按压事件
+     */
+    fun handleTouchPress(normalizedX: Float, normalizedY: Float) {
+        val ray = convertNormalized2DPointToRay(normalizedX, normalizedY)
+        val malletBoundingSphere = Sphere(
+            Point(
+                blueMalletPosition?.x ?: 0f,
+                blueMalletPosition?.y ?: 0f,
+                blueMalletPosition?.z ?: 0f
+            ),
+            mallet.height / 2f
+        )
+        malletPressed = Geometry.intersects(malletBoundingSphere, ray)
+    }
+
+    private fun convertNormalized2DPointToRay(normalizedX: Float, normalizedY: Float): Ray {
+        val nearPointNdc = floatArrayOf(normalizedX, normalizedY, -1f, 1f)
+        val farPointNdc = floatArrayOf(normalizedX, normalizedY, 1f, 1f)
+
+        val nearPointWorld = FloatArray(4)
+        val farPointWorld = FloatArray(4)
+
+        multiplyMV(nearPointWorld, 0, invertedViewProjectMatrix, 0, nearPointNdc, 0)
+        multiplyMV(farPointWorld, 0, invertedViewProjectMatrix, 0, farPointNdc, 0)
+
+        divideByW(nearPointWorld)
+        divideByW(farPointWorld)
+
+        val nearPointRay = Point(nearPointWorld[0],nearPointWorld[1],nearPointWorld[2])
+        val farPointRay = Point(farPointWorld[0],farPointWorld[1],farPointWorld[2])
+
+        return Ray(
+            nearPointRay,
+            Geometry.vectorBetween(nearPointRay, farPointRay)
+        )
+
+    }
+
+    private fun divideByW(vector: FloatArray) {
+        vector[0] /= vector[3]
+        vector[1] /= vector[3]
+        vector[2] /= vector[3]
+    }
+
+    /**
+     * 处理拖拽事件
+     */
+    fun handleTouchDrag(normalizedX: Float, normalizedY: Float) {
+        if (malletPressed){
+            val ray = convertNormalized2DPointToRay(normalizedX, normalizedY)
+            val plane = Plane(Point(0f,0f,0f),Vector(0f,1f,0f))
+            val touchPoint = Geometry.intersectionPoint(ray,plane)
+            blueMalletPosition = Point(touchPoint.x,mallet.height / 2f,touchPoint.z)
+        }
     }
 }
