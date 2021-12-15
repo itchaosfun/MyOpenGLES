@@ -163,14 +163,14 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         table.draw()
 
         //Draw the mallet
-//        positionObjectInScene(0f, mallet.height / 2f, -0.4f)
-        positionObjectInScene(blueMalletPosition?.x?:0f,blueMalletPosition?.y?:0f,blueMalletPosition?.z?:0f)
+        positionObjectInScene(0f, mallet.height / 2f, -0.4f)
         colorProgram.useProgram()
         colorProgram.setUniforms(modelViewProjectMatrix, 1f, 0f, 0f)
         mallet.bindData(colorProgram)
         mallet.draw()
 
-        positionObjectInScene(0f, mallet.height / 2f, 0.4f)
+//        positionObjectInScene(0f, mallet.height / 2f, 0.4f)
+        positionObjectInScene(blueMalletPosition?.x?:0f,blueMalletPosition?.y?:0f,blueMalletPosition?.z?:0f)
         colorProgram.setUniforms(modelViewProjectMatrix, 0f, 0f, 1f)
 
         mallet.draw()
