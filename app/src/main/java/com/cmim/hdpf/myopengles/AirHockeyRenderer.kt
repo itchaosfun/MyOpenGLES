@@ -4,6 +4,8 @@ import android.content.Context
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.cmim.hdpf.myopengles.`object`.Mallet
 import com.cmim.hdpf.myopengles.`object`.Puck
@@ -12,6 +14,7 @@ import com.cmim.hdpf.myopengles.program.ColorShaderProgram
 import com.cmim.hdpf.myopengles.program.TextureShaderProgram
 import com.cmim.hdpf.myopengles.util.MatrixHelper
 import com.cmim.hdpf.myopengles.util.TextureHelper
+import java.util.*
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
@@ -102,13 +105,15 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         //用45度的视野创建一个透视投影。这个视锥体，从z值为-1的位置开始，在z值为-10的位置结束
         MatrixHelper.perspectiveM(
             projectionMatrix,
-            45f,
+            60f,
             width.toFloat() / height.toFloat(),
             1f,
             10f
         )
 
-        setLookAtM(viewMatrix, 0, 0f, 1.2f, 2.2f, 0f, 0f, 0f, 0f, 1f, 0f)
+        setLookAtM(viewMatrix, 0, 0f, 2f, 1f, 0f, 0f, 0f, 0f, 1f, 0f)
+
+        rotateTable()
 
 //        //把模型矩阵设为单位矩阵，再沿着z轴平移-2
 //        setIdentityM(modelMatrix, 0)
@@ -123,6 +128,39 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 //        val temp = FloatArray(16)
 //        multiplyMM(temp, 0, projectionMatrix, 0, modelMatrix, 0)
 //        System.arraycopy(temp, 0, projectionMatrix, 0, temp.size)
+    }
+
+    private var rotationEnable = false
+    private fun rotateTable() {
+        if (rotationEnable) {
+            return
+        }
+
+        var index = 0f
+        Timer().schedule(object : TimerTask() {
+            override fun run() {
+                val angleInRadius = ((index / 360f)) * (Math.PI * 2f)
+                setLookAtM(
+                    viewMatrix,
+                    0,
+                    Math.cos(angleInRadius).toFloat(),
+                    1.2f,
+                    Math.sin(angleInRadius).toFloat(),
+                    0f,
+                    0f,
+                    0f,
+                    0f,
+                    1f,
+                    0f
+                )
+                index = if (index > 360) {
+                    0f
+                } else {
+                    index++
+                }
+            }
+        }, 100, 20)
+
     }
 
     /**
@@ -162,12 +200,13 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         colorProgram.setUniforms(modelViewProjectMatrix, 0.8f, 0.8f, 1f)
         puck.bindData(colorProgram)
         puck.draw()
+
     }
 
     private fun positionObjectInScene(x: Float, y: Float, z: Float) {
-       setIdentityM(modelMatrix,0)
-        translateM(modelMatrix,0,x,y,z)
-        multiplyMM(modelViewProjectMatrix,0,viewProjectMatrix,0,modelMatrix,0)
+        setIdentityM(modelMatrix, 0)
+        translateM(modelMatrix, 0, x, y, z)
+        multiplyMM(modelViewProjectMatrix, 0, viewProjectMatrix, 0, modelMatrix, 0)
     }
 
     private fun positionTableInScene() {
