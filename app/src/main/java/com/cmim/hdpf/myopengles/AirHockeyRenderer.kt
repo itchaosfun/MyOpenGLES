@@ -153,14 +153,12 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
                     1f,
                     0f
                 )
-                index = if (index > 360) {
-                    0f
-                } else {
-                    index++
+                index+=0.5f
+                if (index > 360) {
+                    index = 0f
                 }
             }
-        }, 100, 20)
-
+        }, 100, 10)
     }
 
     /**
@@ -175,7 +173,7 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     override fun onDrawFrame(gl: GL10?) {
         //调用glClear清空屏幕，擦除屏幕上的所有颜色，并用之前的glClearColor调用定义的颜色填充整个屏幕
         glClear(GL_COLOR_BUFFER_BIT)
-
+        //矩阵相乘，结果保存在viewProjectMatrix中
         multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
 
         positionTableInScene()
