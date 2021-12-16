@@ -3,7 +3,7 @@ package com.cmim.hdpf.myopengles.`object`
 import android.opengl.GLES20
 import com.cmim.hdpf.myopengles.BYTES_PER_FLOAT
 import com.cmim.hdpf.myopengles.data.VertexArray
-import com.cmim.hdpf.myopengles.program.TextureShaderProgram
+import com.cmim.hdpf.myopengles.program.AirHockeyTextureShaderProgram
 
 class Table {
     //位置分量计数
@@ -36,7 +36,7 @@ class Table {
     /**
      * 把顶点数组绑定在一个着色器程序上
      */
-    fun bindData(textureProgram: TextureShaderProgram) {
+    fun bindData(textureProgram: AirHockeyTextureShaderProgram) {
         vertexArray.setVertexAttribPointer(
             0,
             textureProgram.getPositionAttributeLocation(),

@@ -4,7 +4,7 @@ import android.content.Context
 import android.opengl.GLES20.*
 import com.cmim.hdpf.myopengles.R
 
-class ColorShaderProgram : ShaderProgram {
+class AirHockeyColorShaderProgram : ShaderProgram {
     //Uniform locations
     private var uMatrixLocation = 0
     private var uColorLocation = 0

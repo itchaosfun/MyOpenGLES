@@ -2,7 +2,7 @@ package com.cmim.hdpf.myopengles.`object`
 
 import com.cmim.hdpf.myopengles.data.VertexArray
 import com.cmim.hdpf.myopengles.geometry.Point
-import com.cmim.hdpf.myopengles.program.ColorShaderProgram
+import com.cmim.hdpf.myopengles.program.AirHockeyColorShaderProgram
 
 class Mallet {
     //位置分量计数
@@ -26,7 +26,7 @@ class Mallet {
     /**
      * 把顶点数组绑定在一个着色器程序上
      */
-    fun bindData(colorProgram: ColorShaderProgram) {
+    fun bindData(colorProgram: AirHockeyColorShaderProgram) {
         vertexArray.setVertexAttribPointer(
             0,
             colorProgram.getPositionAttributeLocation(),

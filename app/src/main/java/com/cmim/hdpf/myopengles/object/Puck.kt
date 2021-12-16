@@ -3,7 +3,7 @@ package com.cmim.hdpf.myopengles.`object`
 import com.cmim.hdpf.myopengles.data.VertexArray
 import com.cmim.hdpf.myopengles.geometry.Cylinder
 import com.cmim.hdpf.myopengles.geometry.Point
-import com.cmim.hdpf.myopengles.program.ColorShaderProgram
+import com.cmim.hdpf.myopengles.program.AirHockeyColorShaderProgram
 
 class Puck {
 
@@ -27,7 +27,7 @@ class Puck {
         drawList = generatedData.drawList
     }
 
-    fun bindData(colorProgram: ColorShaderProgram) {
+    fun bindData(colorProgram: AirHockeyColorShaderProgram) {
         vertexArray?.setVertexAttribPointer(
             0, colorProgram.getPositionAttributeLocation(),
             POSITION_COMPONENT_COUNT, 0

@@ -5,9 +5,8 @@ import android.opengl.GLES20
 import android.opengl.GLES20.GL_TEXTURE0
 import android.opengl.GLES20.GL_TEXTURE_2D
 import com.cmim.hdpf.myopengles.R
-import javax.microedition.khronos.opengles.GL
 
-class TextureShaderProgram : ShaderProgram {
+class AirHockeyTextureShaderProgram : ShaderProgram {
     //Uniform locations
     private var uMatrixLocation = 0
     private var uTextureUnitLocation = 0

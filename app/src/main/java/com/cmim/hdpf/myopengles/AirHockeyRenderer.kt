@@ -1,7 +1,6 @@
 package com.cmim.hdpf.myopengles
 
 import android.content.Context
-import android.media.Image
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
@@ -15,8 +14,8 @@ import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Sphere
 import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Vector
 import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Plane
 import com.cmim.hdpf.myopengles.geometry.Point
-import com.cmim.hdpf.myopengles.program.ColorShaderProgram
-import com.cmim.hdpf.myopengles.program.TextureShaderProgram
+import com.cmim.hdpf.myopengles.program.AirHockeyColorShaderProgram
+import com.cmim.hdpf.myopengles.program.AirHockeyTextureShaderProgram
 import com.cmim.hdpf.myopengles.util.MatrixHelper
 import com.cmim.hdpf.myopengles.util.TextureHelper
 import javax.microedition.khronos.egl.EGLConfig
@@ -72,8 +71,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     private lateinit var mallet: Mallet
     private lateinit var puck: Puck
 
-    private lateinit var textureProgram: TextureShaderProgram
-    private lateinit var colorProgram: ColorShaderProgram
+    private lateinit var textureProgram: AirHockeyTextureShaderProgram
+    private lateinit var colorProgram: AirHockeyColorShaderProgram
 
     private var texture: Int = 0
 
@@ -106,8 +105,8 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         mallet = Mallet(0.08f, 0.15f, 32)
         puck = Puck(0.06f, 0.02f, 32)
 
-        textureProgram = TextureShaderProgram(context)
-        colorProgram = ColorShaderProgram(context)
+        textureProgram = AirHockeyTextureShaderProgram(context)
+        colorProgram = AirHockeyColorShaderProgram(context)
         texture = TextureHelper.loadTexture(context, R.mipmap.air_hockey_surface)
 
         blueMalletPosition = Point(0f, mallet.height / 2f, 0.4f)
