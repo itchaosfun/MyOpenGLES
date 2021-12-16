@@ -51,6 +51,9 @@ class Geometry {
             fun scale(scaleFactor: Float): Vector {
                 return Vector(x * scaleFactor,y * scaleFactor,z*scaleFactor)
             }
+            fun reverseExceptionY(reverseFactor: Float): Vector {
+                return Vector(x * reverseFactor,y,z*reverseFactor)
+            }
         }
 
         class Sphere(val center: Point, val radius: Float)

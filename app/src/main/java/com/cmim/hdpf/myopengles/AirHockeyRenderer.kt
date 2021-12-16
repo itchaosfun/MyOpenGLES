@@ -89,6 +89,9 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
     private var puckPosition: Point? = null
     private var puckVector: Vector? = null
 
+    private var previousPuckPosition: Point? = null
+    private var blueMalletVector: Vector? = null
+
     constructor(context: Context) {
         this.context = context
     }
@@ -135,6 +138,7 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
         puckPosition = Point(0f, puck.height / 2, 0f)
         puckVector = Vector(0f, 0f, 0f)
+        blueMalletVector = Vector(0f, 0f, 0f)
 
 //        //把模型矩阵设为单位矩阵，再沿着z轴平移-2
 //        setIdentityM(modelMatrix, 0)
@@ -182,6 +186,12 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         mallet.draw()
 
 //        positionObjectInScene(0f, mallet.height / 2f, 0.4f)
+        blueMalletPosition = blueMalletPosition?.translate(blueMalletVector!!)
+        blueMalletPosition = Point(
+            clamp(blueMalletPosition!!.x, leftBound + mallet.radius, rightBound - mallet.radius),
+            blueMalletPosition!!.y,
+            clamp(blueMalletPosition!!.z, 0 + mallet.radius, nearBound - mallet.radius)
+        )
         positionObjectInScene(
             blueMalletPosition?.x ?: 0f,
             blueMalletPosition?.y ?: 0f,
@@ -191,6 +201,7 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
         mallet.draw()
 
+        previousPuckPosition = puckPosition
         puckPosition = puckPosition!!.translate(puckVector!!)
         if (puckPosition!!.x < leftBound + puck.radius || puckPosition!!.x > rightBound - puck.radius) {
             puckVector = Vector(-puckVector!!.x, puckVector!!.y, puckVector!!.z)
@@ -198,7 +209,6 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         if (puckPosition!!.z < farBound + puck.radius || puckPosition!!.z > nearBound - puck.radius) {
             puckVector = Vector(puckVector!!.x, puckVector!!.y, -puckVector!!.z)
         }
-
         puckPosition = Point(
             clamp(puckPosition!!.x, leftBound + puck.radius, rightBound - puck.radius),
             puckPosition!!.y,
@@ -209,6 +219,19 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
         colorProgram.setUniforms(modelViewProjectMatrix, 0.8f, 0.8f, 1f)
         puck.bindData(colorProgram)
         puck.draw()
+
+        val distance = Geometry.vectorBetween(blueMalletPosition!!, puckPosition!!).length()
+        if (distance < (puck.radius + mallet.radius)) {
+            //碰撞到了木槌
+            blueMalletVector =
+                Geometry.vectorBetween(previousPuckPosition!!, puckPosition!!)
+            blueMalletVector = blueMalletVector?.scale(0.1f)
+            //冰球本身还要有一个反作用力
+            puckVector = puckVector!!.reverseExceptionY(-1f)
+        }
+
+        blueMalletVector = blueMalletVector!!.scale(0.99f)
+        blueMalletVector = blueMalletVector!!.scale(0.99f)
 
         puckVector = puckVector!!.scale(0.99f)
         puckVector = puckVector!!.scale(0.99f)
@@ -262,7 +285,6 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
             nearPointRay,
             Geometry.vectorBetween(nearPointRay, farPointRay)
         )
-
     }
 
     private fun divideByW(vector: FloatArray) {
@@ -296,5 +318,9 @@ class AirHockeyRenderer : GLSurfaceView.Renderer {
 
     private fun clamp(value: Float, min: Float, max: Float): Float {
         return Math.min(max, Math.max(value, min))
+    }
+
+    fun handleTouchUp() {
+        malletPressed = false
     }
 }

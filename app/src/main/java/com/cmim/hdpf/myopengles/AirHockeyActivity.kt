@@ -47,6 +47,8 @@ class AirHockeyActivity : AppCompatActivity() {
                             normalizedY
                         )
                     }
+                }else{
+                    airHockeyRenderer.handleTouchUp()
                 }
                 return@setOnTouchListener true
             }
