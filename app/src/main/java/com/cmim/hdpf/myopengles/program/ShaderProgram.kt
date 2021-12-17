@@ -13,6 +13,8 @@ open class ShaderProgram {
 
     protected val U_TIME = "u_Time"
 
+    protected val V_COLOR = "v_Color"
+
     //Attribute constants
     protected val A_POSITION = "a_Position"
     protected val A_COLOR = "a_Color"
@@ -30,7 +32,7 @@ open class ShaderProgram {
         )
     }
 
-    fun useProgram(){
+    fun useProgram() {
         GLES20.glUseProgram(program)
     }
 

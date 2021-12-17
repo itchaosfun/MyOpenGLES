@@ -2,14 +2,21 @@ package com.cmim.hdpf.myopengles
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.BitmapDrawable
 import android.opengl.GLES20.*
 import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
+import android.os.Build
+import androidx.annotation.RequiresApi
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.drawable.toBitmap
+import com.cmim.hdpf.myopengles.`object`.Heightmap
 import com.cmim.hdpf.myopengles.`object`.ParticleShooter
 import com.cmim.hdpf.myopengles.`object`.ParticleSystem
 import com.cmim.hdpf.myopengles.`object`.Skybox
 import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Vector
 import com.cmim.hdpf.myopengles.geometry.Point
+import com.cmim.hdpf.myopengles.program.HeightmapShaderProgram
 import com.cmim.hdpf.myopengles.program.ParticleShaderProgram
 import com.cmim.hdpf.myopengles.program.SkyboxShaderProgram
 import com.cmim.hdpf.myopengles.util.MatrixHelper
@@ -17,18 +24,23 @@ import com.cmim.hdpf.myopengles.util.TextureHelper
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
-
 class ParticlesRenderer : GLSurfaceView.Renderer {
     private val TAG = "ParticlesRenderer"
 
-
-    //用于存储顶点数组的4x4矩阵
-    private val projectionMatrix = FloatArray(16)
+    private val modelMatrix = FloatArray(16)
 
     //视图矩阵
     private val viewMatrix = FloatArray(16)
+    private val viewMatrixForSkybox = FloatArray(16)
 
-    private val viewProjectMatrix = FloatArray(16)
+    //用于存储顶点数组的4x4矩阵
+    private val projectionMatrix = FloatArray(16)
+    private val tempMatrix = FloatArray(16)
+    private val modelViewProjectionMatrix = FloatArray(16)
+//    private val viewProjectMatrix = FloatArray(16)
+
+    private lateinit var heightmapShaderProgram: HeightmapShaderProgram
+    private lateinit var heightmap: Heightmap
 
     private var skyboxShaderProgram: SkyboxShaderProgram? = null
     private var skybox: Skybox? = null
@@ -55,14 +67,17 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
         this.context = context
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
+        glEnable(GL_DEPTH_TEST)
+        glEnable(GL_CULL_FACE)
 
         particleProgram = ParticleShaderProgram(context)
         particleSystem = ParticleSystem(10000)
         globalStartTime = System.nanoTime()
 
-        val particleDirection = Vector(0f, 0.7f, 0f)
+        val particleDirection = Vector(0f, 0.5f, 0f)
 
         redParticleShooter =
             ParticleShooter(
@@ -105,6 +120,15 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
                 R.mipmap.back
             )
         )
+
+        heightmapShaderProgram = HeightmapShaderProgram(context)
+        heightmap = Heightmap(
+            ((ResourcesCompat.getDrawable(
+                context.resources,
+                R.drawable.heightmap,
+                context.resources.newTheme()
+            ) as BitmapDrawable).toBitmap())
+        )
     }
 
     /**
@@ -120,16 +144,19 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
             45f,
             width.toFloat() / height.toFloat(),
             1f,
-            10f
+            100f
         )
+        updateViewMatrices()
     }
 
     override fun onDrawFrame(gl: GL10?) {
         //调用glClear清空屏幕，擦除屏幕上的所有颜色，并用之前的glClearColor调用定义的颜色填充整个屏幕
-        glClear(GL_COLOR_BUFFER_BIT)
+        glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
+        drawHeightmap()
         drawSkybox()
         drawParticle()
+
     }
 
     private fun drawParticle() {
@@ -138,31 +165,42 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
         greenParticleShooter?.addParticles(particleSystem!!, currentTime, 5)
         blueParticleShooter?.addParticles(particleSystem!!, currentTime, 5)
 
-        setIdentityM(viewMatrix, 0)
-        rotateM(viewMatrix,0,-yRotation,1f,0f,0f)
-        rotateM(viewMatrix,0,-xRotation,0f,1f,0f)
-        translateM(viewMatrix, 0, 0f, -1.5f, -5f)
-        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+        setIdentityM(modelMatrix, 0)
+        updateMvpMatrix()
 
         glEnable(GL_BLEND)
         glBlendFunc(GL_ONE, GL_ONE)
 
+        glDepthMask(false)
         particleProgram?.useProgram()
-        particleProgram?.setUniforms(viewProjectMatrix, currentTime, particleTexture)
+        particleProgram?.setUniforms(modelViewProjectionMatrix, currentTime, particleTexture)
         particleSystem?.bindData(particleProgram!!)
         particleSystem?.draw()
         glDisable(GL_BLEND)
+        glDepthMask(true)
     }
 
     private fun drawSkybox() {
-        setIdentityM(viewMatrix, 0)
-        rotateM(viewMatrix,0,-yRotation,1f,0f,0f)
-        rotateM(viewMatrix,0,-xRotation,0f,1f,0f)
-        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+        setIdentityM(modelMatrix, 0)
+        updateMvpMatrixForSkybox()
+
+        glDepthFunc(GL_LEQUAL)
         skyboxShaderProgram?.useProgram()
-        skyboxShaderProgram?.setUniforms(viewProjectMatrix, skyboxTexture)
+        skyboxShaderProgram?.setUniforms(modelViewProjectionMatrix, skyboxTexture)
         skybox?.bindData(skyboxShaderProgram!!)
         skybox?.draw()
+        glDepthFunc(GL_LESS)
+    }
+
+    private fun drawHeightmap() {
+        setIdentityM(modelMatrix, 0)
+        scaleM(modelMatrix, 0, 100f, 10f, 100f)
+        updateMvpMatrix()
+
+        heightmapShaderProgram.useProgram()
+        heightmapShaderProgram.setUniforms(modelViewProjectionMatrix)
+        heightmap.bindData(heightmapShaderProgram)
+        heightmap.draw()
     }
 
     fun handlerTouchDrag(deltaX: Float, deltaY: Float) {
@@ -174,5 +212,26 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
         } else if (yRotation > 90) {
             yRotation = 90f
         }
+
+        updateViewMatrices()
+    }
+
+    private fun updateViewMatrices() {
+        setIdentityM(viewMatrix, 0)
+        rotateM(viewMatrix, 0, -yRotation, 1f, 0f, 0f)
+        rotateM(viewMatrix, 0, -xRotation, 0f, 1f, 0f)
+        System.arraycopy(viewMatrix, 0, viewMatrixForSkybox, 0, viewMatrix.size)
+
+        translateM(viewMatrix, 0, 0f, -1.5f, -5f)
+    }
+
+    private fun updateMvpMatrix() {
+        multiplyMM(tempMatrix, 0, viewMatrix, 0, modelMatrix, 0)
+        multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, tempMatrix, 0)
+    }
+
+    private fun updateMvpMatrixForSkybox() {
+        multiplyMM(tempMatrix, 0, viewMatrixForSkybox, 0, modelMatrix, 0)
+        multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, tempMatrix, 0)
     }
 }
