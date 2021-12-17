@@ -7,9 +7,11 @@ import android.opengl.GLSurfaceView
 import android.opengl.Matrix.*
 import com.cmim.hdpf.myopengles.`object`.ParticleShooter
 import com.cmim.hdpf.myopengles.`object`.ParticleSystem
+import com.cmim.hdpf.myopengles.`object`.Skybox
 import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Vector
 import com.cmim.hdpf.myopengles.geometry.Point
 import com.cmim.hdpf.myopengles.program.ParticleShaderProgram
+import com.cmim.hdpf.myopengles.program.SkyboxShaderProgram
 import com.cmim.hdpf.myopengles.util.MatrixHelper
 import com.cmim.hdpf.myopengles.util.TextureHelper
 import javax.microedition.khronos.egl.EGLConfig
@@ -28,6 +30,9 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
 
     private val viewProjectMatrix = FloatArray(16)
 
+    private var skyboxShaderProgram: SkyboxShaderProgram? = null
+    private var skybox: Skybox? = null
+    private var skyboxTexture: Int = 0
 
     private var particleProgram: ParticleShaderProgram? = null
     private var particleSystem: ParticleSystem? = null
@@ -39,7 +44,10 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
     private val angleVarianceInDegrees = 5f
     private val speedVariance = 1f
 
-    private var texture = 0
+    private var particleTexture = 0
+
+    private var xRotation = 0f
+    private var yRotation = 0f
 
     private var context: Context
 
@@ -50,14 +58,11 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f)
 
-        glEnable(GL_BLEND)
-        glBlendFunc(GL_ONE, GL_ONE)
-
         particleProgram = ParticleShaderProgram(context)
         particleSystem = ParticleSystem(10000)
         globalStartTime = System.nanoTime()
 
-        val particleDirection = Vector(0f, 0.5f, 0f)
+        val particleDirection = Vector(0f, 0.7f, 0f)
 
         redParticleShooter =
             ParticleShooter(
@@ -86,8 +91,20 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
                 speedVariance
             )
 
-        texture = TextureHelper.loadTexture(context,R.mipmap.particle_texture)
+        particleTexture = TextureHelper.loadTexture(context, R.mipmap.particle_texture)
 
+        skyboxShaderProgram = SkyboxShaderProgram(context)
+        skybox = Skybox()
+        skyboxTexture = TextureHelper.loadCubeMap(
+            context, intArrayOf(
+                R.mipmap.left,
+                R.mipmap.right,
+                R.mipmap.bottom,
+                R.mipmap.top,
+                R.mipmap.front,
+                R.mipmap.back
+            )
+        )
     }
 
     /**
@@ -105,23 +122,57 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
             1f,
             10f
         )
-        setIdentityM(viewMatrix, 0)
-        translateM(viewMatrix, 0, 0f, -1.5f, -5f)
-        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
     }
 
     override fun onDrawFrame(gl: GL10?) {
         //调用glClear清空屏幕，擦除屏幕上的所有颜色，并用之前的glClearColor调用定义的颜色填充整个屏幕
         glClear(GL_COLOR_BUFFER_BIT)
+
+        drawSkybox()
+        drawParticle()
+    }
+
+    private fun drawParticle() {
         val currentTime = (System.nanoTime() - globalStartTime) / 1000000000f
-        redParticleShooter?.addParticles(particleSystem!!, currentTime, 1)
-        greenParticleShooter?.addParticles(particleSystem!!, currentTime, 1)
-        blueParticleShooter?.addParticles(particleSystem!!, currentTime, 1)
+        redParticleShooter?.addParticles(particleSystem!!, currentTime, 5)
+        greenParticleShooter?.addParticles(particleSystem!!, currentTime, 5)
+        blueParticleShooter?.addParticles(particleSystem!!, currentTime, 5)
+
+        setIdentityM(viewMatrix, 0)
+        rotateM(viewMatrix,0,-yRotation,1f,0f,0f)
+        rotateM(viewMatrix,0,-xRotation,0f,1f,0f)
+        translateM(viewMatrix, 0, 0f, -1.5f, -5f)
+        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_ONE, GL_ONE)
 
         particleProgram?.useProgram()
-        particleProgram?.setUniforms(viewProjectMatrix, currentTime,texture)
+        particleProgram?.setUniforms(viewProjectMatrix, currentTime, particleTexture)
         particleSystem?.bindData(particleProgram!!)
         particleSystem?.draw()
+        glDisable(GL_BLEND)
+    }
 
+    private fun drawSkybox() {
+        setIdentityM(viewMatrix, 0)
+        rotateM(viewMatrix,0,-yRotation,1f,0f,0f)
+        rotateM(viewMatrix,0,-xRotation,0f,1f,0f)
+        multiplyMM(viewProjectMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
+        skyboxShaderProgram?.useProgram()
+        skyboxShaderProgram?.setUniforms(viewProjectMatrix, skyboxTexture)
+        skybox?.bindData(skyboxShaderProgram!!)
+        skybox?.draw()
+    }
+
+    fun handlerTouchDrag(deltaX: Float, deltaY: Float) {
+        xRotation += deltaX / 16f
+        yRotation += deltaY / 16f
+
+        if (yRotation < -90) {
+            yRotation = -90f
+        } else if (yRotation > 90) {
+            yRotation = 90f
+        }
     }
 }

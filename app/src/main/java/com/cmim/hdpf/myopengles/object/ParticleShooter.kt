@@ -41,7 +41,7 @@ class ParticleShooter {
     }
 
     fun addParticles(particleSystem: ParticleSystem, currentTime: Float, count: Int) {
-        for (i in 0..count) {
+        for (i in 0 until count) {
 
             setRotateEulerM(
                 rotationMatrix, 0,
