@@ -23,8 +23,9 @@ class Geometry {
         }
 
         fun intersectionPoint(ray: Ray, plane: Plane): Point {
-            val rayToPlaneVector = vectorBetween(ray.point,plane.point)
-            val scaleFactor = rayToPlaneVector.dotProduct(plane.vector) / ray.vector.dotProduct(plane.vector)
+            val rayToPlaneVector = vectorBetween(ray.point, plane.point)
+            val scaleFactor =
+                rayToPlaneVector.dotProduct(plane.vector) / ray.vector.dotProduct(plane.vector)
             val intersectionPoint = ray.point.translate(ray.vector.scale(scaleFactor))
             return intersectionPoint
         }
@@ -49,13 +50,17 @@ class Geometry {
             }
 
             fun scale(scaleFactor: Float): Vector {
-                return Vector(x * scaleFactor,y * scaleFactor,z*scaleFactor)
+                return Vector(x * scaleFactor, y * scaleFactor, z * scaleFactor)
+            }
+
+            fun normalize(): Vector {
+                return scale(1f / length())
             }
         }
 
         class Sphere(val center: Point, val radius: Float)
 
-        class Plane(val point: Point,val vector: Vector)
+        class Plane(val point: Point, val vector: Vector)
     }
 
 }

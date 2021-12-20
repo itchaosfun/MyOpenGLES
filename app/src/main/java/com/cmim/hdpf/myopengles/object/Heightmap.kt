@@ -4,8 +4,12 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.opengl.GLES20
 import android.util.Log
+import com.cmim.hdpf.myopengles.BYTES_PER_FLOAT
 import com.cmim.hdpf.myopengles.data.IndexBuffer
 import com.cmim.hdpf.myopengles.data.VertexBuffer
+import com.cmim.hdpf.myopengles.geometry.Geometry
+import com.cmim.hdpf.myopengles.geometry.Geometry.Companion.Vector
+import com.cmim.hdpf.myopengles.geometry.Point
 import com.cmim.hdpf.myopengles.program.HeightmapShaderProgram
 import java.lang.RuntimeException
 
@@ -13,6 +17,9 @@ class Heightmap {
     private val TAG = "Heightmap"
 
     private val POSITION_COMPONENT_COUNT = 3
+    private val NORMAL_COMPONENT_COUNT = 3
+    private val TOTAL_COMPONENT_COUNT = POSITION_COMPONENT_COUNT + NORMAL_COMPONENT_COUNT
+    private val STRIDE = (POSITION_COMPONENT_COUNT + NORMAL_COMPONENT_COUNT) * BYTES_PER_FLOAT
     private var width = 0
     private var height = 0
     private var numElements = 0
@@ -59,20 +66,44 @@ class Heightmap {
         bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
         bitmap.recycle()
 
-        val heightmapVertices = FloatArray(width * height * POSITION_COMPONENT_COUNT)
+        val heightmapVertices = FloatArray(width * height * TOTAL_COMPONENT_COUNT)
         var offset = 0
         for (row in 0 until height) {
             for (col in 0 until width) {
-                val xPosition = (col.toFloat() / (width - 1).toFloat()) - 0.5f
-                val yPosition = Color.red(pixels[(row * height) + col]).toFloat() / 255f
-                val zPosition = (row.toFloat() / (height - 1).toFloat()) - 0.5f
-                heightmapVertices[offset++] = xPosition
-                heightmapVertices[offset++] = yPosition
-                heightmapVertices[offset++] = zPosition
+                val point: Point = getPoint(pixels, row, col)
+                heightmapVertices[offset++] = point.x
+                heightmapVertices[offset++] = point.y
+                heightmapVertices[offset++] = point.z
+
+                val top: Point = getPoint(pixels, row - 1, col)
+                val left: Point = getPoint(pixels, row, col - 1)
+                val right: Point = getPoint(pixels, row, col + 1)
+                val bottom: Point = getPoint(pixels, row + 1, col)
+
+                val rightToLeft: Vector = Geometry.vectorBetween(right, left)
+                val topToBottom: Vector = Geometry.vectorBetween(top, bottom)
+                val normal: Vector = rightToLeft.crossProduct(topToBottom).normalize()
+
+                heightmapVertices[offset++] = normal.x
+                heightmapVertices[offset++] = normal.y
+                heightmapVertices[offset++] = normal.z
             }
         }
 
         return heightmapVertices
+    }
+
+    private fun getPoint(pixels: IntArray, row: Int, col: Int): Point {
+        val x = (col.toFloat() / (width - 1).toFloat()) - 0.5f
+        val z = (row.toFloat() / (height - 1).toFloat()) - 0.5f
+        val iRow: Int = clamp(row, 0, width - 1)
+        val iCol = clamp(col, 0, height - 1)
+        val y = Color.red(pixels[iRow * height + iCol]).toFloat() / 255f
+        return Point(x, y, z)
+    }
+
+    private fun clamp(value: Int, min: Int, max: Int): Int {
+        return Math.max(min, Math.min(max, value))
     }
 
     private fun calculateNumElements(): Int {
@@ -84,7 +115,13 @@ class Heightmap {
             0,
             heightmapShaderProgram.getPositionAttributeLocation(),
             POSITION_COMPONENT_COUNT,
-            0
+            STRIDE
+        )
+
+        vertexBuffer.setVertexAttributePointer(
+            POSITION_COMPONENT_COUNT* BYTES_PER_FLOAT,
+            heightmapShaderProgram.getNormalAttributeLocation(),
+            NORMAL_COMPONENT_COUNT, STRIDE
         )
     }
 

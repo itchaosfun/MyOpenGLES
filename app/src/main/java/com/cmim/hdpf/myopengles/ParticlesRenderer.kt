@@ -37,7 +37,9 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
     private val projectionMatrix = FloatArray(16)
     private val tempMatrix = FloatArray(16)
     private val modelViewProjectionMatrix = FloatArray(16)
-//    private val viewProjectMatrix = FloatArray(16)
+
+    private val modelViewMatrix = FloatArray(16)
+    private val it_modelViewMatrix = FloatArray(16)
 
     private lateinit var heightmapShaderProgram: HeightmapShaderProgram
     private lateinit var heightmap: Heightmap
@@ -60,6 +62,22 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
 
     private var xRotation = 0f
     private var yRotation = 0f
+
+    private var vectorToLightDay: Vector = Vector(0.61f, 0.64f, -0.47f).normalize()
+    private var vectorToLightNight: Vector = Vector(0.30f, 0.35f, -0.89f).normalize()
+    private var vectorToLight = floatArrayOf(0.30f, 0.35f, -0.89f, 0f)
+
+    private val pointLightPositions = floatArrayOf(
+        -1f, 1f, 0f, 1f,
+        0f, 1f, 0f, 1f,
+        1f, 1f, 0f, 1f
+    )
+
+    private val pointLightColors = floatArrayOf(
+        1.00f, 0.20f, 0.02f,
+        0.02f, 0.25f, 0.02f,
+        0.02f, 0.20f, 1.00f
+    )
 
     private var context: Context
 
@@ -112,12 +130,12 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
         skybox = Skybox()
         skyboxTexture = TextureHelper.loadCubeMap(
             context, intArrayOf(
-                R.mipmap.left,
-                R.mipmap.right,
-                R.mipmap.bottom,
-                R.mipmap.top,
-                R.mipmap.front,
-                R.mipmap.back
+                R.mipmap.night_left,
+                R.mipmap.night_right,
+                R.mipmap.night_bottom,
+                R.mipmap.night_top,
+                R.mipmap.night_front,
+                R.mipmap.night_back
             )
         )
 
@@ -193,12 +211,27 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
     }
 
     private fun drawHeightmap() {
-        setIdentityM(modelMatrix, 0)
-        scaleM(modelMatrix, 0, 100f, 10f, 100f)
-        updateMvpMatrix()
 
+        scaleM(modelMatrix,0,100f,10f,100f)
+        updateMvpMatrix()
         heightmapShaderProgram.useProgram()
-        heightmapShaderProgram.setUniforms(modelViewProjectionMatrix)
+
+        val vectorToLightInEyeSpace = FloatArray(4)
+        val pointPositionsInEyeSpace = FloatArray(12)
+
+        multiplyMV(vectorToLightInEyeSpace, 0, viewMatrix, 0, vectorToLight, 0)
+        multiplyMV(pointPositionsInEyeSpace, 0, viewMatrix, 0, pointLightPositions, 0)
+        multiplyMV(pointPositionsInEyeSpace, 4, viewMatrix, 0, pointLightPositions, 4)
+        multiplyMV(pointPositionsInEyeSpace, 8, viewMatrix, 0, pointLightPositions, 8)
+
+        heightmapShaderProgram.setUniforms(
+            modelViewMatrix,
+            it_modelViewMatrix,
+            modelViewProjectionMatrix,
+            vectorToLightInEyeSpace,
+            pointPositionsInEyeSpace,
+            pointLightColors
+        )
         heightmap.bindData(heightmapShaderProgram)
         heightmap.draw()
     }
@@ -226,8 +259,10 @@ class ParticlesRenderer : GLSurfaceView.Renderer {
     }
 
     private fun updateMvpMatrix() {
-        multiplyMM(tempMatrix, 0, viewMatrix, 0, modelMatrix, 0)
-        multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, tempMatrix, 0)
+        multiplyMM(modelViewMatrix, 0, viewMatrix, 0, modelMatrix, 0)
+        invertM(tempMatrix, 0, modelViewMatrix, 0)
+        transposeM(it_modelViewMatrix, 0, tempMatrix, 0)
+        multiplyMM(modelViewProjectionMatrix, 0, projectionMatrix, 0, modelViewMatrix, 0)
     }
 
     private fun updateMvpMatrixForSkybox() {
